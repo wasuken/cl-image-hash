@@ -5,7 +5,7 @@ exec ros -Q -- $0 "$@"
 |#
 (progn ;;init forms
   (ros:ensure-asdf)
-  #+quicklisp(ql:quickload '() :silent t)
+  #+quicklisp(ql:quickload '(:opticl :cl-image-hash) :silent t)
   )
 
 (defpackage :ros.script.run.3814302758
@@ -13,5 +13,17 @@ exec ros -Q -- $0 "$@"
 (in-package :ros.script.run.3814302758)
 
 (defun main (&rest argv)
-  (declare (ignorable argv)))
+  (declare (ignorable argv))
+  (handler-case
+	  (let ((cmd (car argv)))
+		(format t "~A~%" (cl-image-hash:hash-dim-bit-diff
+						  (cond ((string= cmd "d")
+								 #'cl-image-hash:dhash-gen-hash)
+								((string= cmd "a")
+								 #'cl-image-hash:ahash-gen-hash))
+						  (nth 1 argv)
+						  (nth 2 argv))))
+	(error (e)
+	  (format *standard-output* "~&Error: ~A~%" e)
+	  (uiop:quit -1))))
 ;;; vim: set ft=lisp lisp:

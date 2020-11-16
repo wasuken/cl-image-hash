@@ -6,6 +6,6 @@
 *.x86f
 *~
 .#*
-imgs/
+*imgs/
 origins/
 *.png
