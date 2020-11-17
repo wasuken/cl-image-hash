@@ -1,7 +1,11 @@
 (defpackage cl-image-hash
   (:use :cl :opticl)
-  (:export :ahash-gen-hash :dhash-gen-hash :hash-dim-bit-diff
-		   :hash-dim-bit-match-persent))
+  (:export :ahash-gen-hash
+		   :dhash-gen-hash
+		   :hash-dim-bit-diff
+		   :hash-dim-bit-match-persent
+		   :byte-array-shrink
+		   :png-file->dim-array))
 (in-package :cl-image-hash)
 
 ;;; (ql:quickload '(:opticl :cl-debug-print))
@@ -109,11 +113,6 @@
 				   (t (error (format nil "{~S} bytes not support" path))))))
 		  (t (error (format nil "{~S} read data is not n-d array" path))))))
 
-(defun dim-array->png-file (i-path o-path bytes)
-  (multiple-value-bind (bytes type)
-	  (png-file->dim-array i-path)
-	))
-
 (defun hash-dim-bit-diff (f a-path b-path)
   (let ((a-hash (funcall f a-path))
 		(b-hash (funcall f b-path))
@@ -160,18 +159,22 @@
 						  (null (nth y (nth x byte-list))))
 				collect (nth y (nth x byte-list)))))
 
-(defun byte-array-shrink-8x8 (byte-array)
-  (let* ((shrink-width 8)
-		 (shrink-height 8)
-		 (byte-list (byte-array->list byte-array))
+(defun byte-array-shrink (byte-array shrink-width shrink-height)
+  (let* ((byte-list (byte-array->list byte-array))
 		 (array-width (length byte-list))
 		 (array-height (length (car byte-list)))
-		 (shrink-range-width (ceiling (floor (/ array-width shrink-width))))
-		 (shrink-range-height (ceiling (floor (/ array-height shrink-height)))))
-	(loop for i from 0 to (1- (length byte-list)) by shrink-range-width
-	   collect (loop for j from 0 to (1- (length (car byte-list))) by shrink-range-height
+		 (shrink-range-width (ceiling (float (/ array-width shrink-width))))
+		 (shrink-range-height (ceiling (float (/ array-height shrink-height)))))
+	(loop for i from 0 to (1- array-width) by shrink-range-width
+	   collect (loop for j from 0 to (1- array-height) by shrink-range-height
 				  collect (caar (byte-list-trim byte-list
 											   i
 											   (1- (+ i shrink-range-width))
 											   j
 											   (1- (+ j shrink-range-height))))))))
+
+(defun byte-array-shrink-8x8 (byte-array)
+  (byte-array-shrink byte-array 8 8))
+
+(defun byte-array-shrink-9x8 (byte-array)
+  (byte-array-shrink byte-array 9 8))
