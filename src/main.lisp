@@ -4,6 +4,9 @@
 		   :hash-dim-bit-match-persent))
 (in-package :cl-image-hash)
 
+;;; (ql:quickload '(:opticl :cl-debug-print))
+;;; (cl-syntax:use-syntax cl-debug-print:debug-print-syntax)
+
 (defun flatten (obj)
   (cond ((eq (type-of obj) 'CONS)
 		 (if (null (cdr obj))
@@ -32,6 +35,32 @@
 											 (length y)))))
 					  x))
 		  color-list))
+
+(defun byte-2d-array->list (byte-array)
+  (let* ((size-lst (nth 2 (type-of byte-array)))
+		 (x (car size-lst))
+		 (y (nth 1 size-lst)))
+	(loop for i below x
+	   collect (loop for j below y
+				  collect (aref byte-array i j)))))
+
+(defun byte-3d-array->list (byte-array)
+  (let* ((size-lst (nth 2 (type-of byte-array)))
+		 (x (car size-lst))
+		 (y (nth 1 size-lst))
+		 (z (nth 2 size-lst)))
+	(loop for i below x
+	   collect (loop for j below y
+				  collect (loop for k below z
+							 collect (aref byte-array i j k))))))
+
+(defun byte-array->list (byte-array)
+  (let ((dim (length (nth 2 (type-of byte-array)))))
+	(cond ((= 3 dim)
+		   (byte-3d-array->list byte-array))
+		  ((= 2 dim)
+		   (byte-2d-array->list byte-array))
+		  (t (error "Not 2-3d byte-list")))))
 
 (defun byte-2d-list->array (byte-list byte-size)
   (let ((result (make-array `(,(length byte-list)
@@ -71,7 +100,7 @@
 		 (byte-2d-list->array byte-list byte-size))
 		(t (error "Not 2-3d byte-list"))))
 
-(defun png-file->dim-ary (path)
+(defun png-file->dim-array (path)
   (let ((img-bytes (opticl:read-png-file path)))
 	(cond ((eq (car (type-of img-bytes)) 'SIMPLE-ARRAY)
 		   (let ((dim (length (nth 2 (type-of img-bytes)))))
@@ -80,9 +109,9 @@
 				   (t (error (format nil "{~S} bytes not support" path))))))
 		  (t (error (format nil "{~S} read data is not n-d array" path))))))
 
-(defun dim-ary->png-file (i-path o-path bytes)
+(defun dim-array->png-file (i-path o-path bytes)
   (multiple-value-bind (bytes type)
-		(png-file->dim-ary i-path)
+	  (png-file->dim-array i-path)
 	))
 
 (defun hash-dim-bit-diff (f a-path b-path)
@@ -100,23 +129,49 @@
   (ceiling (* 100 (float (/ (- len (hash-dim-bit-diff f a-path b-path)) len)))))
 
 (defun ahash-gen-hash (path)
-  (let* ((img-byte-ary-ary (png-file->dim-ary path))
-		 (img-avgs (loop for img-byte-ary in img-byte-ary-ary
+  (let* ((img-byte-array-array (png-file->dim-array path))
+		 (img-avgs (loop for img-byte-array in img-byte-array-array
 					  collect (floor
-							   (float (/ (reduce #'+ img-byte-ary :initial-value 0)
-										 (length img-byte-ary)))))))
+							   (float (/ (reduce #'+ img-byte-array :initial-value 0)
+										 (length img-byte-array)))))))
 	(flatten
-	 (mapcar #'(lambda (img-byte-ary avg)
+	 (mapcar #'(lambda (img-byte-array avg)
 				 (mapcar #'(lambda (x) (if (< avg x) 1 0))
-						 img-byte-ary))
-			 img-byte-ary-ary
+						 img-byte-array))
+			 img-byte-array-array
 			 img-avgs))))
 
 (defun dhash-gen-hash (path)
-  (let ((img-byte-ary-ary (png-file->dim-ary path)))
+  (let ((img-byte-array-array (png-file->dim-array path)))
 	(flatten
-	 (loop for img-byte-ary in img-byte-ary-ary
-		collect (loop for i below (1- (length img-byte-ary))
-				   collect (if (< (nth i img-byte-ary) (nth (1+ i) img-byte-ary))
+	 (loop for img-byte-array in img-byte-array-array
+		collect (loop for i below (1- (length img-byte-array))
+				   collect (if (< (nth i img-byte-array) (nth (1+ i) img-byte-array))
 							   1
 							   0))))))
+
+(defun byte-list-trim (byte-list begin-width end-width begin-height end-height)
+  (loop for x from begin-width to end-width
+	 until (or (< (length byte-list) x)
+			   (null (nth x byte-list)))
+	 collect (loop for y from begin-height to end-height
+				until (or (< (length byte-list) x)
+						  (< (length (car byte-list)) y)
+						  (null (nth y (nth x byte-list))))
+				collect (nth y (nth x byte-list)))))
+
+(defun byte-array-shrink-8x8 (byte-array)
+  (let* ((shrink-width 8)
+		 (shrink-height 8)
+		 (byte-list (byte-array->list byte-array))
+		 (array-width (length byte-list))
+		 (array-height (length (car byte-list)))
+		 (shrink-range-width (ceiling (floor (/ array-width shrink-width))))
+		 (shrink-range-height (ceiling (floor (/ array-height shrink-height)))))
+	(loop for i from 0 to (1- (length byte-list)) by shrink-range-width
+	   collect (loop for j from 0 to (1- (length (car byte-list))) by shrink-range-height
+				  collect (caar (byte-list-trim byte-list
+											   i
+											   (1- (+ i shrink-range-width))
+											   j
+											   (1- (+ j shrink-range-height))))))))
