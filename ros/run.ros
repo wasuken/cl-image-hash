@@ -16,7 +16,7 @@ exec ros -Q -- $0 "$@"
   (declare (ignorable argv))
   (handler-case
 	  (let ((cmd (car argv)))
-		(format t "~A~%" (cl-image-hash:hash-dim-bit-diff
+		(format t "一致率:~A%~%" (cl-image-hash:hash-dim-bit-match-persent
 						  (cond ((string= cmd "d")
 								 #'cl-image-hash:dhash-gen-hash)
 								((string= cmd "a")
