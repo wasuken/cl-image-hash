@@ -5,7 +5,7 @@
 		   :hash-dim-bit-diff
 		   :hash-dim-bit-match-persent
 		   :byte-array-shrink
-		   :png-file->dim-array))
+		   :png-file->dim-list))
 (in-package :cl-image-hash)
 
 ;;; (ql:quickload '(:opticl :cl-debug-print))
@@ -104,7 +104,7 @@
 		 (byte-2d-list->array byte-list byte-size))
 		(t (error "Not 2-3d byte-list"))))
 
-(defun png-file->dim-array (path)
+(defun png-file->dim-list (path)
   (let ((img-bytes (opticl:read-png-file path)))
 	(cond ((eq (car (type-of img-bytes)) 'SIMPLE-ARRAY)
 		   (let ((dim (length (nth 2 (type-of img-bytes)))))
@@ -128,7 +128,7 @@
   (ceiling (* 100 (float (/ (- len (hash-dim-bit-diff f a-path b-path)) len)))))
 
 (defun ahash-gen-hash (path)
-  (let* ((img-byte-array-array (png-file->dim-array path))
+  (let* ((img-byte-array-array (png-file->dim-list path))
 		 (img-avgs (loop for img-byte-array in img-byte-array-array
 					  collect (floor
 							   (float (/ (reduce #'+ img-byte-array :initial-value 0)
@@ -141,7 +141,7 @@
 			 img-avgs))))
 
 (defun dhash-gen-hash (path)
-  (let ((img-byte-array-array (png-file->dim-array path)))
+  (let ((img-byte-array-array (png-file->dim-list path)))
 	(flatten
 	 (loop for img-byte-array in img-byte-array-array
 		collect (loop for i below (1- (length img-byte-array))
@@ -168,13 +168,62 @@
 	(loop for i from 0 to (1- array-width) by shrink-range-width
 	   collect (loop for j from 0 to (1- array-height) by shrink-range-height
 				  collect (caar (byte-list-trim byte-list
-											   i
-											   (1- (+ i shrink-range-width))
-											   j
-											   (1- (+ j shrink-range-height))))))))
+												i
+												(1- (+ i shrink-range-width))
+												j
+												(1- (+ j shrink-range-height))))))))
 
 (defun byte-array-shrink-8x8 (byte-array)
   (byte-array-shrink byte-array 8 8))
 
 (defun byte-array-shrink-9x8 (byte-array)
   (byte-array-shrink byte-array 9 8))
+
+(defun dct-1d (seq k)
+  (let* ((sum 0)
+		 (n (length seq))
+		 (last-n (nth (1- n) seq)))
+	(loop for i from 1 to (- n 2)
+	   do (setf sum
+				(+ sum (+ (* (nth i seq) (cos (* (/ 3.14 (1- n)) n k)))
+						  (* (/ (expt -1 k) 2) last-n)))))
+	(float (+ (/ (nth 0 seq) 2) sum))))
+
+(defun dct-2d-c (p)
+  (if (zerop p)
+	  (/ 1 (sqrt 2))
+	  1))
+
+;;; 参考
+;;; http://www.enjoy.ne.jp/~k-ichikawa/DCTran.html
+(defun dct-2d (seq)
+  (let ((m (length seq))
+		(n (length (car seq))))
+	(loop for i from 0 to (1- m)
+	   collect (loop for j from 0 to (1- n)
+				  collect (let ((sum 0))
+							(loop for x from 1 to (1- m)
+							   do (loop for y from 1 to (1- n)
+									 do (setf sum
+											  (+ sum
+												 (* (nth y (nth x seq))
+													(* (cos (/ (* (1+ (* 2 i)) x pi) (* 2 m)))
+													   (cos (/ (* (1+ (* 2 j)) y pi) (* 2 n)))))))))
+							(float (* (dct-2d-c i) (dct-2d-c j) sum)))))))
+
+(defun idct-2d (seq)
+  (let ((m (length seq))
+		(n (length (car seq))))
+	(loop for x from 0 to (1- (length seq))
+	   collect (loop for y from 0 to (1- (length (car seq)))
+				  collect (let ((sum 0))
+							(loop for i from 1 to (1- m)
+							   do (loop for j from 1 to (1- n)
+									 do (setf sum
+											  (+ sum
+												 (* (dct-2d-c i)
+													(dct-2d-c j)
+													(nth j (nth i seq))
+													(cos (/ (* (1+ (* 2 i)) x pi) (* 2 m)))
+													(cos (/ (* (1+ (* 2 j)) y pi) (* 2 n))))))))
+							(float (* (/ 4 (* m n)) sum)))))))
