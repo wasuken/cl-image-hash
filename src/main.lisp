@@ -195,35 +195,41 @@
 	  1))
 
 ;;; 参考
-;;; http://www.enjoy.ne.jp/~k-ichikawa/DCTran.html
+;;; https://jp.mathworks.com/help/signal/ref/dct.html#References
 (defun dct-2d (seq)
-  (let ((m (length seq))
-		(n (length (car seq))))
-	(loop for i from 0 to (1- m)
-	   collect (loop for j from 0 to (1- n)
-				  collect (let ((sum 0))
-							(loop for x from 1 to (1- m)
-							   do (loop for y from 1 to (1- n)
-									 do (setf sum
-											  (+ sum
-												 (* (nth y (nth x seq))
-													(* (cos (/ (* (1+ (* 2 i)) x pi) (* 2 m)))
-													   (cos (/ (* (1+ (* 2 j)) y pi) (* 2 n)))))))))
-							(float (* (dct-2d-c i) (dct-2d-c j) sum)))))))
+  (let* ((single-dim-seq (flatten seq))
+		 (end (1- (length single-dim-seq)))
+		 (len (length single-dim-seq)))
+	(loop for k from 0 to end
+	   collect (let ((rst 0)
+					 (c (if (= k 0)
+							(/ 1.0 (sqrt len))
+							(sqrt (/ 2.0 len)))))
+				 (loop for n from 0 to end
+					do (incf rst (* (nth n single-dim-seq)
+									(cos (* (/ pi (1- len))
+											(1- k)
+											(1- (* 2 n)))))
+							 ))
+				 (* c rst)))
+	))
 
+;;; 参考
+;;; https://jp.mathworks.com/help/signal/ref/idct.html#bvk_uaj
 (defun idct-2d (seq)
-  (let ((m (length seq))
-		(n (length (car seq))))
-	(loop for x from 0 to (1- (length seq))
-	   collect (loop for y from 0 to (1- (length (car seq)))
-				  collect (let ((sum 0))
-							(loop for i from 1 to (1- m)
-							   do (loop for j from 1 to (1- n)
-									 do (setf sum
-											  (+ sum
-												 (* (dct-2d-c i)
-													(dct-2d-c j)
-													(nth j (nth i seq))
-													(cos (/ (* (1+ (* 2 i)) x pi) (* 2 m)))
-													(cos (/ (* (1+ (* 2 j)) y pi) (* 2 n))))))))
-							(float (* (/ 4 (* m n)) sum)))))))
+  (let* ((single-dim-seq (flatten seq))
+		 (end (1- (length single-dim-seq)))
+		 (len (length single-dim-seq)))
+	(loop for k from 0 to end
+	   collect (let ((rst 0)
+					 (c (if (= k 0)
+							(/ 1.0 (sqrt len))
+							(sqrt (/ 2.0 len)))))
+				 (loop for n from 0 to end
+					do (incf rst (* (nth n single-dim-seq)
+									(cos (* (/ pi (1- len))
+											(1- n)
+											(1- (* 2 k)))))
+							 ))
+					 (* c rst)))
+		 ))
